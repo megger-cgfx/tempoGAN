@@ -515,5 +515,3 @@ class FluidDataLoader(object):
 
 class FluidDataLoaderError(Exception):
 	''' FDL errors '''
-
-

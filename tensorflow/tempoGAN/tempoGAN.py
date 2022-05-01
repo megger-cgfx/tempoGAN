@@ -16,13 +16,15 @@ import sys
 import math
 
 import tensorflow as tf
-from tensorflow.python.client import timeline
 import numpy as np
+
+print(__file__)
+print(os.getcwd())
 
 # load manta tools
 toolspath = os.path.join(__file__, "../../tools")
-print("\n\n\nTOOLS PATH: \n", toolspath, "\n\n")
-sys.path.append("toolspath")
+#print("\n\n\nTOOLS PATH: \n", toolspath, "\n\n")
+sys.path.append(toolspath)
 import tilecreator_t as tc
 import uniio
 import paramhelpers as ph
@@ -40,13 +42,13 @@ load_model_test = int(ph.getParam("load_model_test",
                                   -1))  # the number of the test to load a model from. can be used in training and output mode. -1 to not load a model
 load_model_no = int(ph.getParam("load_model_no", -1))  # nubmber of the model to load
 
-simSizeLow = int(ph.getParam("simSize", 64))  # tiles of low res sim
+simSizeLow = int(ph.getParam("simSize", 32))  # tiles of low res sim
 tileSizeLow = int(ph.getParam("tileSize", 16))  # size of low res tiles
 dt = float(ph.getParam("dt", 1.0))  # step time of training data
 # Data and Output
 loadPath = ph.getParam("loadPath", '../2ddata_sim/')  # path to training data
 fromSim = int(ph.getParam("fromSim", 1000))  # range of sim data to use, start index
-toSim = int(ph.getParam("toSim", -1))  # end index
+toSim = int(ph.getParam("toSim", 1000))  # end index
 dataDimension = int(ph.getParam("dataDim",
                                 2))  # dimension of dataset, can be 2 or 3. in case of 3D any scaling will only be applied to H and W (DHW)
 numOut = int(ph.getParam("numOut", 200))  # number ouf images to output (from start of sim)
@@ -113,8 +115,8 @@ maxToKeep		= int(ph.getParam( "keepMax",		 3  )) 			# maximum number of model sa
 genValiImg		= int(ph.getParam( "genValiImg",	  -1 )) 			# if > -1 generate validation image every output interval
 note			= ph.getParam( "note",		   "" )					# optional info about the current test run, printed in log and overview
 data_fraction	= float(ph.getParam( "data_fraction",		   0.3 ))
-frameMax		= int(ph.getParam( "frameMax",		   200 ))
-frameMin		= int(ph.getParam( "frameMin",		   0 ))
+frameMax		= int(ph.getParam( "frameMax",		   0 ))
+frameMin		= int(ph.getParam( "frameMin",		   189 ))
 ADV_flag		= int(ph.getParam( "adv_flag",		   True )) # Tempo parameter, add( or not) advection to pre/back frame to align
 saveMD          = int \
     (ph.getParam( "saveMetaData", 0 ))      # profiling, add metadata to summary object? warning - only main training for now
@@ -145,8 +147,8 @@ if toSim == -1:
 	toSim = fromSim
 
 channelLayout_low = 'd'
-lowfilename = "density_low_%04d.uni"
-highfilename = "density_high_%04d.uni"
+lowfilename = "density_low_%04d.npz"
+highfilename = "density_high_%04d.npz"
 mfl = ["density"]
 mfh = ["density"]
 if outputOnly: 
@@ -168,7 +170,10 @@ if (outputOnly):
 
 if ((not useTempoD) and (not useTempoL2)): # should use the full sequence, not use multi_files
 	tiCr = tc.TileCreator(tileSizeLow=tileSizeLow, simSizeLow=simSizeLow , dim =dataDimension, dim_t = 1, channelLayout_low = channelLayout_low, upres=upRes, premadeTiles=premadeTiles)
-	floader = FDL.FluidDataLoader( print_info=1, base_path=loadPath, filename=lowfilename, oldNamingScheme=False, filename_y=highfilename, filename_index_min=frameMin, filename_index_max=frameMax, indices=dirIDs, data_fraction=data_fraction, multi_file_list=mfl, multi_file_list_y=mfh)
+	floader = FDL.FluidDataLoader( print_info=1, base_path=loadPath, filename=lowfilename, oldNamingScheme=False,
+                                   filename_y=highfilename, filename_index_min=frameMin, filename_index_max=frameMax,
+                                   indices=dirIDs, data_fraction=data_fraction, multi_file_list=mfl,
+                                   multi_file_list_y=mfh)
 else:
 	lowparalen = len(mfl)
 	highparalen = len(mfh)
@@ -180,11 +185,20 @@ else:
 	mfh= np.append(mfh_tempo, mfh)
 	moh = np.append(np.zeros(highparalen), np.ones(highparalen))
 	moh = np.append(moh, np.ones(highparalen ) *2)
-	tiCr = tc.TileCreator(tileSizeLow=tileSizeLow, simSizeLow=simSizeLow , dim =dataDimension, dim_t = 3, channelLayout_low = channelLayout_low, upres=upRes, premadeTiles=premadeTiles)
-	floader = FDL.FluidDataLoader( print_info=1, base_path=loadPath, filename=lowfilename, oldNamingScheme=False, filename_y=highfilename, filename_index_max=frameMax, indices=dirIDs, data_fraction=data_fraction, multi_file_list=mfl, multi_file_idxOff=mol, multi_file_list_y=mfh , multi_file_idxOff_y=moh)
+	tiCr = tc.TileCreator(
+        tileSizeLow=tileSizeLow, simSizeLow=simSizeLow , dim =dataDimension, dim_t = 3,
+        channelLayout_low = channelLayout_low, upres=upRes, premadeTiles=premadeTiles
+    )
+	floader = FDL.FluidDataLoader(
+        print_info=1, base_path=loadPath, filename=lowfilename, oldNamingScheme=False, filename_y=highfilename,
+        filename_index_min=frameMin, filename_index_max=frameMax, indices=dirIDs, data_fraction=data_fraction,
+        multi_file_list=mfl, multi_file_idxOff=mol, multi_file_list_y=mfh , multi_file_idxOff_y=moh
+    )
 
 if useDataAugmentation:
-	tiCr.initDataAugmentation(rot=rot, minScale=minScale, maxScale=maxScale ,flip=flip)
+	tiCr.initDataAugmentation(
+        rot=rot, minScale=minScale, maxScale=maxScale ,flip=flip
+    )
 inputx, y, xFilenames = floader.get()
 if (not outputOnly):
     tiCr.addData(inputx, y)
@@ -231,7 +245,7 @@ else:
 # logging & info
 sys.stdout = ph.Logger(test_path)
 print('Note: {}'.format(note))
-print("\nCalled on machine '" + os.uname()[1] + "' with: " + str(" ".join(sys.argv)))
+# print("\nCalled on machine '" + os.uname()[1] + "' with: " + str(" ".join(sys.argv)))
 print("\nUsing parameters:\n" + ph.paramsToString())
 ph.writeParams(test_path + "params.json")  # export parameters in human readable format
 
