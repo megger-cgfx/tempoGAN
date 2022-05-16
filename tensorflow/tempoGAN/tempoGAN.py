@@ -11,19 +11,14 @@
 
 import time
 import os
-import shutil
 import sys
-import math
 
 import tensorflow as tf
 import numpy as np
 
-print(__file__)
-print(os.getcwd())
-
 # load manta tools
-toolspath = os.path.join(__file__, "../../tools")
-#print("\n\n\nTOOLS PATH: \n", toolspath, "\n\n")
+toolspath = os.path.join(os.getcwd(), "../tools")
+# toolspath = os.path.join(__file__, "../../tools")
 sys.path.append(toolspath)
 import tilecreator_t as tc
 import uniio
@@ -31,36 +26,63 @@ import paramhelpers as ph
 from GAN import GAN, lrelu
 import fluiddataloader as FDL
 
+
+
+import time
+PERFDEBUG = True     # Enable performance logging
+perftimes = {}
+def perftime(comment = "", thread=0):
+    if PERFDEBUG:
+        try:
+            perftimes[thread].append(time.perf_counter())
+        except KeyError:  # First Instance of Thread
+            perftimes[thread] = [time.perf_counter()]
+
+        n_times = len(perftimes[thread])
+        if n_times >= 2:
+            print(f"\033[94m \tPerftimer ({comment}): "
+                  f"{round((perftimes[thread][-1] - perftimes[thread][-2]) * 1000, 1)}"
+                  f"ms \x1b[0m")
+perftime()
+
 # ---------------------------------------------
 
 # initialize parameters / command line params
-outputOnly = int(ph.getParam("out", False)) > 0  # output/generation mode, main mode switch
+outputOnly = int(ph.getParam("out", True)) > 0  # output/generation mode, main mode switch
 
-basePath = ph.getParam("basePath", '../2ddata_gan/')
+basePath = ph.getParam("basePath", '../3ddata_gan/')
 randSeed = int(ph.getParam("randSeed", 1))  # seed for np and tf initialization
 load_model_test = int(ph.getParam("load_model_test",
-                                  -1))  # the number of the test to load a model from. can be used in training and output mode. -1 to not load a model
-load_model_no = int(ph.getParam("load_model_no", -1))  # nubmber of the model to load
+                                  0))  # the number of the test to load a model from. can be used in training and output mode. -1 to not load a model
+load_model_no = int(ph.getParam("load_model_no", 34))  # nubmber of the model to load
 
-simSizeLow = int(ph.getParam("simSize", 32))  # tiles of low res sim
-tileSizeLow = int(ph.getParam("tileSize", 16))  # size of low res tiles
+simSizeLow = int(ph.getParam("simSize", 64))  # tiles of low res sim
+tileSizeLow = int(ph.getParam("tileSize", 26))  # size of low res tiles
 dt = float(ph.getParam("dt", 1.0))  # step time of training data
 # Data and Output
-loadPath = ph.getParam("loadPath", '../2ddata_sim/')  # path to training data
+loadPath = ph.getParam("loadPath", '../../../22-04_multipassGAN/3ddata_sim_arbitraryshape')  # path to training data
+
 fromSim = int(ph.getParam("fromSim", 1000))  # range of sim data to use, start index
-toSim = int(ph.getParam("toSim", 1000))  # end index
-dataDimension = int(ph.getParam("dataDim",
-                                2))  # dimension of dataset, can be 2 or 3. in case of 3D any scaling will only be applied to H and W (DHW)
-numOut = int(ph.getParam("numOut", 200))  # number ouf images to output (from start of sim)
-saveOut = int(ph.getParam("saveOut", False)) > 0  # save output of output mode as .npz in addition to images
-loadOut = int(ph.getParam("loadOut",
-                          -1))  # load output from npz to use in output mode instead of tiles. number or output dir, -1 for not use output data
-outputImages = int(ph.getParam("img", True)) > 0  # output images
+toSim = int(ph.getParam("toSim", -1))  # end index
+if toSim == -1:
+	toSim = fromSim
+
+frameMin		= int(ph.getParam( "frameMin",		   110 ))
+frameMax		= int(ph.getParam( "frameMax",		   111 ))
+frame		= int(ph.getParam( "frame",		   -1 ))
+if frame != -1:
+    frameMin = frame
+    frameMax = frame + 1
+
+dataDimension = int(ph.getParam("dataDim", 3))  # dimension of dataset, can be 2 or 3. in case of 3D any scaling will only be applied to H and W (DHW)
+numOut = int(ph.getParam("numOut", 1))  # number ouf images to output (from start of sim)
+
+outputImages = int(ph.getParam("img", False)) > 0  # output images
 outputGif = int(ph.getParam("gif", False)) > 0  # output gif
 outputRef = int(ph.getParam("ref", False)) > 0  # output "real" data for reference in output mode (may not work with 3D)
 # models
-genModel = ph.getParam("genModel", 'gen_test')  # choose generator model
-discModel = ph.getParam("discModel", 'disc_test')  # choose discriminator model
+genModel = ph.getParam("genModel", 'gen_resnet')  # choose generator model
+discModel = ph.getParam("discModel", 'disc_binclass')  # choose discriminator model
 # Training
 learning_rate = float(ph.getParam("learningRate", 0.0002))
 decayLR = int(ph.getParam("decayLR", False)) > 0  # decay learning rate?
@@ -79,21 +101,19 @@ k2_l2 = float(ph.getParam("lambda2_l2", 1.0))  # influence/weight of L2 layer te
 k2_l3 = float(ph.getParam("lambda2_l3", 1.0))  # influence/weight of L3 layer term on discriminator loss
 k2_l4 = float(ph.getParam("lambda2_l4", 1.0))  # influence/weight of L4 layer term on discriminator loss
 kt = float(ph.getParam("lambda_t", 1.0))  # tempo discriminator loss; 1.0 is good, 0.0 will disable
-kt_l = float(ph.getParam("lambda_t_l2",
-                         0.0))  # l2 tempo loss (as naive alternative to discriminator); 1.0 is good, 0.0 will disable
-batch_size = int(
-    ph.getParam("batchSize", 128))  # batch size for pretrainig and output, default for batchSizeDisc and batchSizeGen
+kt_l = float(ph.getParam("lambda_t_l2", 0.0))  # l2 tempo loss (as naive alternative to discriminator); 1.0 is good, 0.0 will disable
+batch_size = int(ph.getParam("batchSize", 1))  # batch size for pretrainig and output, default for batchSizeDisc and batchSizeGen
 batch_size_disc = int(ph.getParam("batchSizeDisc", batch_size))  # batch size for disc runs when training gan
 batch_size_gen = int(ph.getParam("batchSizeGen", batch_size))  # batch size for gen runs when training gan
 trainGAN = int(ph.getParam("trainGAN", True)) > 0  # GAN trainng can be switched off to use pretrainig only
-trainingIters = int(ph.getParam("trainingIters", 100000))  # for GAN training
+trainingIters = int(ph.getParam("trainingIters", 1000))  # for GAN training
 discRuns = int(ph.getParam("discRuns", 1))  # number of discrimiinator optimizer runs per iteration
 genRuns = int(ph.getParam("genRuns", 1))  # number or generator optimizer runs per iteration
 batch_norm = int(ph.getParam("batchNorm", True)) > 0  # apply batch normalization to conv and deconv layers
 bn_decay = float(ph.getParam("bnDecay", 0.999))  # decay of batch norm EMA
 use_spatialdisc = int(ph.getParam("use_spatialdisc", True))  # use spatial discriminator or not
 
-useVelocities = int(ph.getParam("useVelocities", 0))  # use velocities or not
+useVelocities = int(ph.getParam("useVelocities", 1))  # use velocities or not
 useVorticities = int(ph.getParam("useVorticities", 0))  # use vorticities or not
 premadeTiles = int(ph.getParam("premadeTiles", 0))  # use pre-made tiles?
 
@@ -106,8 +126,7 @@ flip	 =   int(ph.getParam( "flip",		  1	 ))
 # Test and Save
 testPathStartNo = int(ph.getParam( "testPathStartNo", 0  ))
 valiInterval	= int(ph.getParam( "valiInterval", 	  20  )) 			# interval in iterations to run validation, should be lower or equal outputInterval
-numValis		= int \
-    (ph.getParam( "numValis", 		  10  )) 			# number of validation runs to perform from vali data each interval, run as batch
+numValis		= int (ph.getParam( "numValis", 		  10  )) 			# number of validation runs to perform from vali data each interval, run as batch
 outputInterval	= int(ph.getParam( "outputInterval",  100  ))			# interval in iterations to output statistics
 saveInterval	= int(ph.getParam( "saveInterval",	  200  ))	 		# interval in iterations to save model
 alwaysSave	    = int(ph.getParam( "alwaysSave",	  True  )) 			#
@@ -115,14 +134,48 @@ maxToKeep		= int(ph.getParam( "keepMax",		 3  )) 			# maximum number of model sa
 genValiImg		= int(ph.getParam( "genValiImg",	  -1 )) 			# if > -1 generate validation image every output interval
 note			= ph.getParam( "note",		   "" )					# optional info about the current test run, printed in log and overview
 data_fraction	= float(ph.getParam( "data_fraction",		   0.3 ))
-frameMax		= int(ph.getParam( "frameMax",		   0 ))
-frameMin		= int(ph.getParam( "frameMin",		   189 ))
 ADV_flag		= int(ph.getParam( "adv_flag",		   True )) # Tempo parameter, add( or not) advection to pre/back frame to align
-saveMD          = int \
-    (ph.getParam( "saveMetaData", 0 ))      # profiling, add metadata to summary object? warning - only main training for now
-overlap         = int(ph.getParam( "overlap",		   3 )) # parameter for 3d unifile output, overlap of voxels
+saveMD          = int (ph.getParam( "saveMetaData", 0 ))      # profiling, add metadata to summary object? warning - only main training for now
+overlap         = int(ph.getParam( "overlap",		   2 )) # parameter for 3d unifile output, overlap of voxels
+
+
+# ----- Houdini inference parameters: -------
+model_file_override = str(ph.getParam("model_file", ""))
+input_file_override = str(ph.getParam( "input_file", "" ))
+vram_limit = float(ph.getParam( "vram_limit", 0 ))
+# logfile = str(ph.getParam( "logfile", "" ))
+#### return_mode = int(ph.getParam( "return_mode", False )) > 0 # parameter for 3d unifile output, overlap of voxels
+fromSim
+
+
+# CUSTOM TEMP OVERRIDE
+#model_path_override = "/mnt/c/Work/22-04_tempoGAN_2/tensorflow/test_0000/model_0034.ckpt"
+#input_file_override  = "/mnt/c/Work/22-04_tempoGAN_2/houdini/temp/density_low.0016.npz"
+#input_file_override = "/mnt/c/Users/Martin Egger/AppData/Local/Temp/houdini_temp/density_low.%04d.npz"
+#frameMin = 16
+#frameMax = frameMin + 1
+#input_file_override = "/mnt/c/Users/Martin~1/AppData/Local/Temp/houdini_temp/density_low.0016.npz"
 
 ph.checkUnusedParams()
+
+
+# ------------ Set logging to file:
+# if logfile != "":
+#     import logging
+#
+#     # get TF logger
+#     log = logging.getLogger('tensorflow')
+#     log.setLevel(logging.DEBUG)
+#
+#     # create formatter and add it to the handlers
+#     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+#
+#     # create file handler which logs even debug messages
+#     fh = logging.FileHandler(logfile)
+#     #fh.setLevel(logging.DEBUG)
+#     #fh.setFormatter(formatter)
+#     log.addHandler(fh)
+
 
 useTempoD = False
 useTempoL2 = False
@@ -143,12 +196,23 @@ if not (dataDimension == 2 or dataDimension == 3):
 	print('Unsupported data dimension {}. Only 2 and 3 are supported'.format(dataDimension))
 	exit(1)
 
-if toSim == -1:
-	toSim = fromSim
-
 channelLayout_low = 'd'
 lowfilename = "density_low_%04d.npz"
 highfilename = "density_high_%04d.npz"
+if input_file_override is not "":
+    loadPath = "/".join(input_file_override.split("/")[:-2])
+    lowfilename = input_file_override.split("/")[-1]
+    try:
+        fromSim = int(input_file_override.split("/")[-2][-4:])
+        toSim = fromSim
+    except ValueError:
+        raise KeyError("------ Could not deduct required sim number from input folder! \n"
+                       "------ Has to match 4 trailing digits format like: '/sim_1001/'.")
+
+
+# print("loadPath: ", loadPath)
+# print("lowfilename: ", lowfilename)
+
 mfl = ["density"]
 mfh = ["density"]
 if outputOnly: 
@@ -174,6 +238,7 @@ if ((not useTempoD) and (not useTempoL2)): # should use the full sequence, not u
                                    filename_y=highfilename, filename_index_min=frameMin, filename_index_max=frameMax,
                                    indices=dirIDs, data_fraction=data_fraction, multi_file_list=mfl,
                                    multi_file_list_y=mfh)
+
 else:
 	lowparalen = len(mfl)
 	highparalen = len(mfh)
@@ -227,11 +292,14 @@ if useVorticities:
     n_inputChannels += 3
 n_input *= n_inputChannels
 
+
 # init paths
 if not load_model_test == -1:
     if not os.path.exists(basePath + 'test_%04d/' % load_model_test):
         print('ERROR: Test to load does not exist.')
     load_path = basePath + 'test_%04d/model_%04d.ckpt' % (load_model_test, load_model_no)
+    if model_file_override is not "":
+        load_path = model_file_override
     if outputOnly:
         out_path_prefix = 'out_%04d-%04d' % (load_model_test, load_model_no)
         test_path, _ = ph.getNextGenericPath(out_path_prefix, 0, basePath + 'test_%04d/' % load_model_test)
@@ -243,7 +311,7 @@ else:
     test_path, load_model_test_new = ph.getNextTestPath(testPathStartNo, basePath)
 
 # logging & info
-sys.stdout = ph.Logger(test_path)
+# sys.stdout = ph.Logger(test_path)
 print('Note: {}'.format(note))
 # print("\nCalled on machine '" + os.uname()[1] + "' with: " + str(" ".join(sys.argv)))
 print("\nUsing parameters:\n" + ph.paramsToString())
@@ -708,6 +776,10 @@ if not outputOnly:
 
 # create session and saver
 config = tf.ConfigProto(allow_soft_placement=True)
+
+if vram_limit > 0:
+    config.gpu_options.per_process_gpu_memory_fraction = vram_limit
+
 sess = tf.InteractiveSession(config=config)
 saver = tf.train.Saver(max_to_keep=maxToKeep)
 
@@ -911,11 +983,21 @@ def generate3DUni(sim_no=fromSim, frame_no=1, outPath=test_path, imageindex=0):
                     tiles.append(low)
         batch_xs = np.array(tiles)
         resultTiles = []
+
+        perftime("", "overall")
+
         for tileno in range(batch_xs.shape[0]):
             batch_xs_in = np.reshape(batch_xs[tileno], [-1, n_input])
             results = sess.run(sampler, feed_dict={x: batch_xs_in, keep_prob: dropoutOutput, train: False})
+
+            perftime(f"Inferred Tile Nr: {tileno}")
+
             results = np.array(results)
             resultTiles.extend(results)
+
+        print("\n")
+        perftime("Inferrence total", "overall")
+
         resultTiles = np.array(resultTiles)
         resulttiles = np.reshape(resultTiles, [resultTiles.shape[0], tileSizeHigh, tileSizeHigh, tileSizeHigh])
         high = np.zeros([simLowLength * upRes, simLowWidth * upRes, simLowHeight * upRes])
@@ -936,45 +1018,57 @@ def generate3DUni(sim_no=fromSim, frame_no=1, outPath=test_path, imageindex=0):
                     kto = (tileSizeLow - overlap) * upRes
                     if i == 0:
                         ifrom = 0
-                        ito = (tileSizeLow - overlap) * upRes
+                        ito =     (tileSizeLow - overlap) * upRes
                         ihighfrom = 0
                         ihighto = (tileSizeLow - overlap) * upRes
                     if j == 0:
                         jfrom = 0
-                        jto = (tileSizeLow - overlap) * upRes
+                        jto =     (tileSizeLow - overlap) * upRes
                         jhighfrom = 0
                         jhighto = (tileSizeLow - overlap) * upRes
                     if k == 0:
                         kfrom = 0
-                        kto = (tileSizeLow - overlap) * upRes
+                        kto =     (tileSizeLow - overlap) * upRes
                         khighfrom = 0
                         khighto = (tileSizeLow - overlap) * upRes
                     if i == lengthnum - 1:
                         ifrom = overlap * upRes
-                        ito = tileSizeLow * upRes
+                        ito =        tileSizeLow * upRes
                         ihighfrom = simLowLength * upRes - tileSizeLow * upRes + overlap * upRes
-                        ihighto = simLowLength * upRes
+                        ihighto =   simLowLength * upRes
                     if j == widthnum - 1:
                         jfrom = overlap * upRes
-                        jto = tileSizeLow * upRes
+                        jto =      tileSizeLow * upRes
                         jhighfrom = simLowWidth * upRes - tileSizeLow * upRes + overlap * upRes
-                        jhighto = simLowWidth * upRes
+                        jhighto =   simLowWidth * upRes
                     if k == heightnum - 1:
                         kfrom = overlap * upRes
-                        kto = tileSizeLow * upRes
+                        kto =      tileSizeLow * upRes
                         khighfrom = simLowHeight * upRes - tileSizeLow * upRes + overlap * upRes
-                        khighto = simLowHeight * upRes
+                        khighto =   simLowHeight * upRes
                     high[ihighfrom: ihighto, jhighfrom:jhighto, khighfrom:khighto] = resulttiles[
                                                                                          i * widthnum * heightnum + j * heightnum + k][
                                                                                      ifrom:ito, jfrom:jto, kfrom:kto]
 
         high = np.reshape(high, [simLowLength * upRes, simLowWidth * upRes, simLowHeight * upRes])
 
-        head, _ = uniio.readUni(loadPath + "sim_%04d/density_high_%04d.uni" % (sim_no, frame_no + frameMin))
-        head['dimX'] = simLowHeight * upRes
-        head['dimY'] = simLowWidth * upRes
-        head['dimZ'] = simLowLength * upRes
-        uniio.writeUni(outPath + 'source_%04d.uni' % (frame_no + frameMin), head, high)
+        perftime("Concatenated tiles")
+
+        # head, _ = uniio.readUni(loadPath + "sim_%04d/density_high_%04d.uni" % (sim_no, frame_no + frameMin))
+        # head['dimX'] = simLowHeight * upRes
+        # head['dimY'] = simLowWidth * upRes
+        # head['dimZ'] = simLowLength * upRes
+        # uniio.writeUni(outPath + 'source_%04d.uni' % (frame_no + frameMin), head, high)
+
+        # if return_mode:
+        #     return high
+        # else:
+
+        np.savez_compressed(
+            f"{loadPath}/sim_{fromSim}/density_superres_{frame_no + frameMin:04}.npz",
+            density=high
+        )
+        perftime("Saved NPZ")
 
 
 def saveModel(cost, exampleOut=-1, imgPath=test_path):
@@ -1168,6 +1262,7 @@ if not outputOnly and trainGAN:
 
             # validate model
             if (iteration + 1) % valiInterval == 0:
+                print(f"Validating Iteration: {iteration+1}")
                 if use_spatialdisc:
                     # gather statistics from training
                     batch_xs, batch_ys = getInput(batch_size=numValis, useVelocities=useVelocities,
@@ -1404,9 +1499,11 @@ if not outputOnly and trainGAN:
         text_file.write('\ttraining duration: %.02f minutes' % training_duration + '\n')
 
 
+
 ### OUTPUT MODE ###
 
 elif outputOnly:
+    perftime("Initialize Model")
     print('*****OUTPUT ONLY*****')
 
     for layerno in range(0, frameMax - frameMin):
@@ -1420,4 +1517,5 @@ elif outputOnly:
         print("Writing gif")
         tc.pngs_to_gif(test_path, start_idx=frameMin, end_idx=frameMax)
 
-    print('Test finished, %d outputs written to %s.' % (frameMax - frameMin, test_path))
+    print(f"Output finished, data written to {loadPath}")
+
