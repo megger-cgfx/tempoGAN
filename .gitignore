@@ -1,7 +1,7 @@
 # TEMPOGAN MODEL FILES:
 *.ckpt.*
 *3ddata_gan\*
-*3ddata_gan
+*3ddata_gan*
 */bak/*
 # Too large, at around 100MB
 
@@ -37,3 +37,6 @@
 *.exe
 *.out
 *.app
+
+/tensorflow/2ddata_gan/
+/tensorflow/3ddata_gan/

@@ -1,0 +1,127 @@
+NVD3D10: CPU cyclestats are disabled on client virtualization 
+NVD3D10: CPU cyclestats are disabled on client virtualization 
+NVD3D10: CPU cyclestats are disabled on client virtualization 
+NVD3D10: CPU cyclestats are disabled on client virtualization 
+NVD3D10: CPU cyclestats are disabled on client virtualization 
+
+
+Dimension: 3, time dimension: 1
+Low-res data:
+  channel layout: ['d', 'vx', 'vy', 'vz']
+  default channels: [0]
+  velocity channels: [[1, 2, 3]]
+High-res data:
+  channel layout: ['d']
+  default channels: [0]
+FluidDataLoader init, path ../../../22-04_multipassGAN/3ddata_sim_arbitraryshape, filename density_low_%04d.npz
+Found 1 files from sim ID 1000
+Allocating x data for 1 entries of size (59, 64, 51, 4)
+loadFiles: data size x (1, 59, 64, 51, 4)
+Loaded 1 datasets
+	Data shape x (1, 59, 64, 51, 4)
+	x mean & var: [0.2359983, 0.9523814693801476]
+	Per channel mean & var for x: 
+		0: (0.009376248, 0.04169651386770307)
+		1: (0.124679044, 0.7776041409457782)
+		2: (0.8407247, 1.3942752464242643)
+		3: (-0.0307869, 0.7596675544734698)
+Random seed: 1
+Using out_0000-0034 dir '../3ddata_gan/test_0000/out_0000-0034_0480/'
+Note: 
+
+Using parameters:
+	out: True
+	basePath: ../3ddata_gan/
+	randSeed: 1
+	load_model_test: 0
+	load_model_no: 34
+	simSize: 64
+	tileSize: 34
+	dt: 1.0
+	loadPath: ../../../22-04_multipassGAN/3ddata_sim_arbitraryshape
+	fromSim: 1000
+	toSim: 1000
+	frameMin: 199
+	frameMax: 200
+	dataDim: 3
+	numOut: 1
+	img: False
+	gif: False
+	ref: False
+	genModel: gen_resnet
+	discModel: disc_binclass
+	learningRate: 0.0002
+	decayLR: False
+	dropout: 1.0
+	dropoutOutput: 1.0
+	adam_beta1: 0.5
+	weight_dld: 1.0
+	lambda: 1.0
+	lambda2: 0.0
+	lambda_f: 1.0
+	lambda2_f: 1.0
+	lambda2_l1: 1.0
+	lambda2_l2: 1.0
+	lambda2_l3: 1.0
+	lambda2_l4: 1.0
+	lambda_t: 1.0
+	lambda_t_l2: 0.0
+	batchSize: 1
+	batchSizeDisc: 1
+	batchSizeGen: 1
+	trainGAN: True
+	trainingIters: 1000
+	discRuns: 1
+	genRuns: 1
+	batchNorm: True
+	bnDecay: 0.999
+	use_spatialdisc: True
+	useVelocities: 1
+	useVorticities: 0
+	premadeTiles: 0
+	dataAugmentation: 0
+	minScale: 0.85
+	maxScale: 1.15
+	rot: 2
+	flip: 1
+	testPathStartNo: 0
+	valiInterval: 20
+	numValis: 10
+	outputInterval: 100
+	saveInterval: 200
+	alwaysSave: True
+	keepMax: 3
+	genValiImg: -1
+	note: 
+	data_fraction: 0.3
+	adv_flag: True
+	saveMetaData: 0
+	overlap: 2
+	model_file: 
+	input_file: 
+	vram_limit: 0.7
+
+*****OUTPUT ONLY*****
+x: (?, 157216)
+
+	Generator (resize-resnett3-deep)
+Input: (?, 34, 34, 34, 4)
+Max Depool : (?, 68, 68, 68, 4)
+Max Depool : (?, 136, 136, 136, 4)
+Convolutional Layer 'g_cA0' (5, 5, 5, 4, 8) (relu) : (?, 136, 136, 136, 8), BN:True
+Convolutional Layer 'g_cB0' (5, 5, 5, 8, 32) (None) : (?, 136, 136, 136, 32), BN:True
+Convolutional Layer 'g_s0' (1, 1, 1, 4, 32) (None) : (?, 136, 136, 136, 32), BN:True
+Convolutional Layer 'g_cA1' (5, 5, 5, 32, 128) (relu) : (?, 136, 136, 136, 128), BN:True
+Convolutional Layer 'g_cB1' (5, 5, 5, 128, 128) (None) : (?, 136, 136, 136, 128), BN:True
+Convolutional Layer 'g_s1' (1, 1, 1, 32, 128) (None) : (?, 136, 136, 136, 128), BN:True
+Convolutional Layer 'g_cA2' (5, 5, 5, 128, 32) (relu) : (?, 136, 136, 136, 32), BN:True
+Convolutional Layer 'g_cB2' (5, 5, 5, 32, 8) (None) : (?, 136, 136, 136, 8), BN:True
+Convolutional Layer 'g_s2' (1, 1, 1, 128, 8) (None) : (?, 136, 136, 136, 8), BN:True
+Convolutional Layer 'g_cA3' (5, 5, 5, 8, 2) (relu) : (?, 136, 136, 136, 2), BN:False
+Convolutional Layer 'g_cB3' (5, 5, 5, 2, 1) (None) : (?, 136, 136, 136, 1), BN:False
+Convolutional Layer 'g_s3' (1, 1, 1, 8, 1) (None) : (?, 136, 136, 136, 1), BN:False
+	DOFs: 3148014 , 3.148014 m 
+Model restored from ../3ddata_gan/test_0000/model_0034.ckpt.
+[94m 	Perftimer (Initialize Model): 6268.5ms [0m
+*****OUTPUT ONLY*****
+Generating 0
