@@ -38,5 +38,7 @@
 *.out
 *.app
 
-/tensorflow/2ddata_gan/
-/tensorflow/3ddata_gan/
+/tensorflow/2ddata_gan/*
+/tensorflow/3ddata_gan/*
+22-04_tempoGAN_2.zip
+houdini/backup/*
