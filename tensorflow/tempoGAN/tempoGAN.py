@@ -60,15 +60,15 @@ simSizeLow = int(ph.getParam("simSize", 64))  # tiles of low res sim
 tileSizeLow = int(ph.getParam("tileSize", 26))  # size of low res tiles
 dt = float(ph.getParam("dt", 1.0))  # step time of training data
 # Data and Output
-loadPath = ph.getParam("loadPath", '../../../22-04_multipassGAN/3ddata_sim_arbitraryshape')  # path to training data
+loadPath = ph.getParam("loadPath", '../../../22-04_multipassGAN/3ddata_sim')  # path to training data
 
 fromSim = int(ph.getParam("fromSim", 1000))  # range of sim data to use, start index
 toSim = int(ph.getParam("toSim", -1))  # end index
 if toSim == -1:
 	toSim = fromSim
 
-frameMin		= int(ph.getParam( "frameMin",		   110 ))
-frameMax		= int(ph.getParam( "frameMax",		   111 ))
+frameMin		= int(ph.getParam( "frameMin",		   0 ))
+frameMax		= int(ph.getParam( "frameMax",		   20 ))
 frame		= int(ph.getParam( "frame",		   -1 ))
 if frame != -1:
     frameMin = frame
@@ -117,10 +117,10 @@ useVelocities = int(ph.getParam("useVelocities", 1))  # use velocities or not
 useVorticities = int(ph.getParam("useVorticities", 0))  # use vorticities or not
 premadeTiles = int(ph.getParam("premadeTiles", 0))  # use pre-made tiles?
 
-useDataAugmentation = int(ph.getParam("dataAugmentation", 0))  # use dataAugmentation or not
+useDataAugmentation = int(ph.getParam("dataAugmentation", 1))  # use dataAugmentation or not
 minScale = float(ph.getParam("minScale", 0.85))  # augmentation params...
 maxScale = float(ph.getParam("maxScale", 1.15))
-rot = int(ph.getParam("rot", 2	))  # rot: 1: 90 degree rotations; 2: full rotation; else: nop rotation
+rot = int(ph.getParam("rot", 1	))  # rot: 1: 90 degree rotations; 2: full rotation; else: nop rotation
 flip	 =   int(ph.getParam( "flip",		  1	 ))
 
 # Test and Save
@@ -133,7 +133,7 @@ alwaysSave	    = int(ph.getParam( "alwaysSave",	  True  )) 			#
 maxToKeep		= int(ph.getParam( "keepMax",		 3  )) 			# maximum number of model saves to keep in each test-run
 genValiImg		= int(ph.getParam( "genValiImg",	  -1 )) 			# if > -1 generate validation image every output interval
 note			= ph.getParam( "note",		   "" )					# optional info about the current test run, printed in log and overview
-data_fraction	= float(ph.getParam( "data_fraction",		   0.3 ))
+data_fraction	= float(ph.getParam( "data_fraction",		   0.2 ))
 ADV_flag		= int(ph.getParam( "adv_flag",		   True )) # Tempo parameter, add( or not) advection to pre/back frame to align
 saveMD          = int (ph.getParam( "saveMetaData", 0 ))      # profiling, add metadata to summary object? warning - only main training for now
 overlap         = int(ph.getParam( "overlap",		   2 )) # parameter for 3d unifile output, overlap of voxels
@@ -145,7 +145,6 @@ input_file_override = str(ph.getParam( "input_file", "" ))
 vram_limit = float(ph.getParam( "vram_limit", 0 ))
 # logfile = str(ph.getParam( "logfile", "" ))
 #### return_mode = int(ph.getParam( "return_mode", False )) > 0 # parameter for 3d unifile output, overlap of voxels
-fromSim
 
 
 # CUSTOM TEMP OVERRIDE
@@ -155,6 +154,13 @@ fromSim
 #frameMin = 16
 #frameMax = frameMin + 1
 #input_file_override = "/mnt/c/Users/Martin~1/AppData/Local/Temp/houdini_temp/density_low.0016.npz"
+
+# TRAINING DEBUG OVERRIDE
+tileSizeLow = 16
+simSizeLow = int(np.ceil(tileSizeLow*maxScale)) # enlarge by maximum scale
+outputOnly = False
+
+
 
 ph.checkUnusedParams()
 
@@ -266,6 +272,8 @@ if useDataAugmentation:
     )
 inputx, y, xFilenames = floader.get()
 if (not outputOnly):
+    inputx = tiCr.random_crop_to_size(inputx, target_size=simSizeLow,  center_bias=0.5)
+    y      = tiCr.random_crop_to_size(y,      target_size=simSizeHigh, center_bias=0.5)
     tiCr.addData(inputx, y)
 elif dataDimension == 3:
     simLowLength = inputx.shape[1]

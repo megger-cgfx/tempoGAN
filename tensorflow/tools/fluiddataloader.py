@@ -322,7 +322,7 @@ class FluidDataLoader(object):
 		n = len(self.xfn)
 		for t in range(n):
 			fof = 0 if self.multi_file_idxOff is None else self.multi_file_idxOff[0]
-			fx = self.loadSingleDatum(self.xfn[t], self.np_load_string , fof) 
+			fx = self.loadSingleDatum(self.xfn[t], self.np_load_string , fof)
 
 			if self.multi_file_list is not None:
 				# concat multiple files...

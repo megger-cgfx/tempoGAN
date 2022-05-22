@@ -342,11 +342,13 @@ class TileCreator(object):
 				single_frame_high_shape[-1] = high_shape[-1] // self.dim_t
 			
 			if not np.array_equal(single_frame_low_shape, self.frame_shape_low) or not np.array_equal(single_frame_high_shape,self.frame_shape_high):
-				self.TCError('Frame shape mismatch: is - specified\n\tlow: {} - {}\n\thigh: {} - {}, '
-							 'given dim_t as {}'.format(
-					single_frame_low_shape, self.frame_shape_low, single_frame_high_shape,self.frame_shape_high,
-					self.dim_t)
-				)
+				# self.TCError('Frame shape mismatch: is - specified\n\tlow: {} - {}\n\thigh: {} - {}, '
+				# 			 'given dim_t as {}'.format(
+				# 	single_frame_low_shape, self.frame_shape_low, single_frame_high_shape,self.frame_shape_high,
+				# 	self.dim_t)
+				# )
+				pass
+
 
 		self.data[DATA_KEY_LOW].extend(low)
 		self.data[DATA_KEY_HIGH].extend(high)
@@ -963,6 +965,68 @@ class TileCreator(object):
 		# C_KEY_VELOCITY[label](x|y|z)
 		self.parseCVector(c, i, c_types, C_KEY_VELOCITY, 'vorticity')
 
+	def random_crop_to_size(self, input, target_size=16, center_bias=0, seed=43):
+		"""Function to transform input to random slices of 64 voxels (in 2D)
+
+		Args:
+			input (5d np.array): [frame, Z, Y, X, c]
+			target_size (int): Desired 3D size to crop XYZ dims to.
+			center_bias (float, 0-1): Bias towards cropping to center
+		"""
+
+		size_orig = input.shape[1:4]
+
+
+		cropped_output = []
+
+		for i in range(input.shape[0]):
+			input_frame = input[i, ...]
+
+			np.random.seed(seed+i*8562)
+
+			# Randomly crop to desired size
+			# First calculate maximum offset by subtracting target size from source size
+			source_shape = np.array(input_frame.shape[0:3])
+			target_shape = np.array([target_size, target_size, target_size])
+			crop_random_ranges = source_shape - target_shape
+			# Calculate start positions for each dimension
+			rand = np.random.random(3)
+			# Bias rand towards 0.5 by center_bias
+			center_bias = min( max(center_bias,0), 1) # Limit bias to 0 and 1
+			rand = ( (rand * (1-center_bias)) + ( np.ones(3)*0.5 * center_bias) )
+
+			#print(rand.round(2), end="")
+			crop_start = (rand * crop_random_ranges).round().astype(np.int16)
+			crop_end = crop_start + target_shape
+			#print(crop_start, crop_end, end="")
+
+			random_sample = input_frame[
+				crop_start[0]:crop_end[0],
+				crop_start[1]:crop_end[1],
+				crop_start[2]:crop_end[2],
+				:
+			]
+			#print(f"/size:{random_sample.shape}", end="")
+
+			# Randomly flip along either x or y
+			flip_rng = np.random.random()
+			if flip_rng < 1/3:
+				if flip_rng < 2/3: axis = 0
+				else: axis = 1
+				random_sample = np.flip(random_sample, axis)
+
+			# Randomly rotate by 90 degrees
+			rot_rng = int( np.random.random() * 4)
+			random_sample = np.rot90(random_sample, rot_rng)
+
+
+			# if SINGLE_FIELD:
+			#     return random_sample
+			# else:
+			cropped_output.append(random_sample)
+		return np.array(cropped_output)
+
+
 #####################################################################################
 # ERROR HANDLING
 #####################################################################################
@@ -1319,4 +1383,3 @@ def pngs_to_gif(path, start_idx=0, end_idx=199, step=1, fps=20, mask="img_%04d.p
 		for i in range(start_idx - 1, end_idx, step):
 			image = imageio.imread(path+(mask % (i+1)))
 			writer.append_data(image)
-
