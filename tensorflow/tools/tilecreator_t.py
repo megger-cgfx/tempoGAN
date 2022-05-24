@@ -1010,9 +1010,10 @@ class TileCreator(object):
 
 			# Randomly flip along either x or y
 			flip_rng = np.random.random()
-			if flip_rng < 1/3:
-				if flip_rng < 2/3: axis = 0
-				else: axis = 1
+			if flip_rng < 1/4:
+				if flip_rng < 2/4: axis = 0
+				elif flip_rng < 3/4: axis = 1
+				else: axis = 2
 				random_sample = np.flip(random_sample, axis)
 
 			# Randomly rotate by 90 degrees

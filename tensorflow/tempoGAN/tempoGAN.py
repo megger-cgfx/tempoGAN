@@ -52,8 +52,7 @@ outputOnly = int(ph.getParam("out", True)) > 0  # output/generation mode, main m
 
 basePath = ph.getParam("basePath", '../3ddata_gan/')
 randSeed = int(ph.getParam("randSeed", 1))  # seed for np and tf initialization
-load_model_test = int(ph.getParam("load_model_test",
-                                  0))  # the number of the test to load a model from. can be used in training and output mode. -1 to not load a model
+load_model_test = int(ph.getParam("load_model_test",0))  # the number of the test to load a model from. can be used in training and output mode. -1 to not load a model
 load_model_no = int(ph.getParam("load_model_no", 34))  # nubmber of the model to load
 
 simSizeLow = int(ph.getParam("simSize", 64))  # tiles of low res sim
@@ -63,12 +62,12 @@ dt = float(ph.getParam("dt", 1.0))  # step time of training data
 loadPath = ph.getParam("loadPath", '../../../22-04_multipassGAN/3ddata_sim')  # path to training data
 
 fromSim = int(ph.getParam("fromSim", 1000))  # range of sim data to use, start index
-toSim = int(ph.getParam("toSim", -1))  # end index
+toSim = int(ph.getParam("toSim", 1002))  # end index
 if toSim == -1:
 	toSim = fromSim
 
 frameMin		= int(ph.getParam( "frameMin",		   0 ))
-frameMax		= int(ph.getParam( "frameMax",		   20 ))
+frameMax		= int(ph.getParam( "frameMax",		   200 ))
 frame		= int(ph.getParam( "frame",		   -1 ))
 if frame != -1:
     frameMin = frame
@@ -118,7 +117,7 @@ useVorticities = int(ph.getParam("useVorticities", 0))  # use vorticities or not
 premadeTiles = int(ph.getParam("premadeTiles", 0))  # use pre-made tiles?
 
 useDataAugmentation = int(ph.getParam("dataAugmentation", 1))  # use dataAugmentation or not
-minScale = float(ph.getParam("minScale", 0.85))  # augmentation params...
+minScale = float(ph.getParam("minScale", 0.9))  # augmentation params...
 maxScale = float(ph.getParam("maxScale", 1.15))
 rot = int(ph.getParam("rot", 1	))  # rot: 1: 90 degree rotations; 2: full rotation; else: nop rotation
 flip	 =   int(ph.getParam( "flip",		  1	 ))
@@ -127,13 +126,13 @@ flip	 =   int(ph.getParam( "flip",		  1	 ))
 testPathStartNo = int(ph.getParam( "testPathStartNo", 0  ))
 valiInterval	= int(ph.getParam( "valiInterval", 	  20  )) 			# interval in iterations to run validation, should be lower or equal outputInterval
 numValis		= int (ph.getParam( "numValis", 		  10  )) 			# number of validation runs to perform from vali data each interval, run as batch
-outputInterval	= int(ph.getParam( "outputInterval",  100  ))			# interval in iterations to output statistics
-saveInterval	= int(ph.getParam( "saveInterval",	  200  ))	 		# interval in iterations to save model
+outputInterval	= int(ph.getParam( "outputInterval",  50  ))			# interval in iterations to output statistics
+saveInterval	= int(ph.getParam( "saveInterval",	  100  ))	 		# interval in iterations to save model
 alwaysSave	    = int(ph.getParam( "alwaysSave",	  True  )) 			#
 maxToKeep		= int(ph.getParam( "keepMax",		 3  )) 			# maximum number of model saves to keep in each test-run
 genValiImg		= int(ph.getParam( "genValiImg",	  -1 )) 			# if > -1 generate validation image every output interval
 note			= ph.getParam( "note",		   "" )					# optional info about the current test run, printed in log and overview
-data_fraction	= float(ph.getParam( "data_fraction",		   0.2 ))
+data_fraction	= float(ph.getParam( "data_fraction",		   0.1 ))
 ADV_flag		= int(ph.getParam( "adv_flag",		   True )) # Tempo parameter, add( or not) advection to pre/back frame to align
 saveMD          = int (ph.getParam( "saveMetaData", 0 ))      # profiling, add metadata to summary object? warning - only main training for now
 overlap         = int(ph.getParam( "overlap",		   2 )) # parameter for 3d unifile output, overlap of voxels
@@ -156,11 +155,15 @@ vram_limit = float(ph.getParam( "vram_limit", 0 ))
 #input_file_override = "/mnt/c/Users/Martin~1/AppData/Local/Temp/houdini_temp/density_low.0016.npz"
 
 # TRAINING DEBUG OVERRIDE
-tileSizeLow = 16
-simSizeLow = int(np.ceil(tileSizeLow*maxScale)) # enlarge by maximum scale
+load_model_test = -1
+load_model_no = -1
+tileSizeLow = 12
+simSizeLow = 14 #int(np.ceil(tileSizeLow*maxScale)) # enlarge by maximum scale
 outputOnly = False
-
-
+trainingIters = 5000
+genValiImg = 1
+genRuns = 2
+discRuns = 2
 
 ph.checkUnusedParams()
 
@@ -1157,6 +1160,9 @@ if not outputOnly and trainGAN:
         avgValiCost_gen_t_l = 0
 
         for iteration in range(trainingIters):
+            if iteration % 5 == 0:
+                perftime(f"Iteration Time - Nr. {iteration}", "iterations")
+
             lrgs = max(0, iteration - (trainingIters // 2))  # LR counter, start decay at half time... (if enabled)
             run_options = None;
             run_metadata = None

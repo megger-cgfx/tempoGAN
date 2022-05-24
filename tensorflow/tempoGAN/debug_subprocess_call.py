@@ -10,6 +10,7 @@ subprocess.run(
     f'wsl bash -c \". {conda_path} && '
     'conda activate tempoGAN && '
     f'python {tempoGAN_path} '
-    f'input_file {input_file} model_file {model_file} frame 16\"',
+    #f'input_file {input_file} model_file {model_file} frame 16'
+    f'\"',
     shell=True
 )
