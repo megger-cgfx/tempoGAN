@@ -13,6 +13,13 @@ download pre-trained models below.
 
 ![An example output of our trained 3D model (low-res left, tempoGAN right)](resources/tempoGAN.jpg)
 
+## Houdini implementation:
+Video: https://youtu.be/wVeX4nnLipw
+
+[![Watch the video](https://img.youtube.com/vi/wVeX4nnLipw/maxresdefault.jpg)]([https://youtu.be/wVeX4nnLipw](https://youtu.be/wVeX4nnLipw))
+
+![Houdini implementation:]
+
 # Getting started
 This is a brief overview and getting-started guide for the source code of 
 the tempoGAN project. It can also be found under tempoGAN/tensorflow/tempoGAN/README.txt.
